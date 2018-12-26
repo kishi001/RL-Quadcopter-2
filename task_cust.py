@@ -45,7 +45,7 @@ class Task():
     def get_reward(self, rotor_speeds: np.array):
         #Uses current pose of sim to return reward
         #target_distance = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos[int(self.sim.time)])).sum() ** 0.4
-        #target_distance = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos[int(self.sim.time)])).sum()
+        
         velocity = self.sim.v
                 
         #dist_reward = 1 - target_distance ** 0.5
@@ -67,8 +67,6 @@ class Task():
         #reward = vel_discount * target_distance
         
         reward *= 10
-        #round(number to round,number of decimal places)
-        #reward = round(reward,2)
         reward = -reward
         #print("task.reward = {}\n".format(reward), end="") #output1 -> task.reward = 59.55
                                                             #outpu2 -> task.reward = [0. 0. 0. 0.]

@@ -61,9 +61,6 @@ class Critic:
 
         self.session = None
 
-        # Initialize any other variables here
-
-        # self.build_model(self, self.input_states, self.input_actions, task, scope_name) 
         
     def initialize(self):
         self.session.run(self.init)
@@ -108,19 +105,23 @@ class Critic:
 
         return result
     
+    #fucntion to set the session
     def set_session(self, session):
         self.session = session
-
+    
+    #function to get value
     def get_value(self, state, action):
         return self.session.run(
             self.current,
             feed_dict={self.input_states: state, self.input_actions: action, self.is_training: False})
-
+    
+    #function to get the target value
     def get_target_value(self, state, action):
         return self.session.run(
             self.target,
             feed_dict={self.input_states: state, self.input_actions: action, self.is_training: False})
-
+    
+    #function for learning
     def learn(self, states, actions, targets):
         self.session.run(
             self.optimizer,
@@ -129,7 +130,8 @@ class Critic:
                 self.input_actions: actions,
                 self.y: targets,
                 self.is_training: True})
-
+    
+    #function for update_target
     def update_target(self, tau):
         self.session.run(self.assignments, feed_dict={self.tau: tau})
  
