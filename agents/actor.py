@@ -8,11 +8,8 @@ Created on Wed Dec 26 15:31:33 2018
 
 from keras import layers, models, optimizers, losses, regularizers
 from keras import backend as K
-
 from keras.utils.np_utils import to_categorical
-
 from .utils import scope_variables_mapping
-
 import tensorflow as tf
 
 
