@@ -5,133 +5,62 @@ Created on Wed Dec 26 15:36:33 2018
 @author: kishi
 """
 
-
-import tensorflow as tf
-
-from .utils import scope_variables_mapping
+from keras import layers, models, optimizers, regularizers
+from keras import backend as K
 
 class Critic:
     """Critic (Value) Model."""
-    
-    def __init__(self, input_states, input_actions, task,  scope_name='critic', training=False, reuse=False):
+
+    def __init__(self, state_size, action_size):
         """Initialize parameters and build model.
 
         Params
         ======
-            input_states (int): Dimension of each state
-            input_actions (int): Dimension of each action
-            is_training
-            learning_rate
-            gamma
-            tau
-            target
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
         """
-        self.scope = scope_name
-        self.learning_rate = 0.001
-        self.input_states=input_states
-        self.input_actions=input_actions
+        self.state_size = state_size
+        self.action_size = action_size
 
-        
-        self.input_states = tf.placeholder(
-            tf.float32,
-            (None, task.num_states),
-            name='critic/states')
-        
-        self.input_actions = tf.placeholder(
-            tf.float32,
-            (None, task.num_actions),
-            name='critic/actions')
-        
-        self.is_training = tf.placeholder(tf.bool, name='critic/is_training')
+        # Initialize any other variables here
 
-        ## print("DDPG scope_name = {} \n".format(scope_name + '_target'), end="")  # [debug]
-        self.target = self.build_model(self.input_states, self.input_actions, task, scope_name + '_target')
-        self.current = self.build_model(self.input_states, self.input_actions, task, scope_name + '_current', training=self.is_training)
+        self.build_model()
 
-        self.y = tf.placeholder(tf.float32, (None, 1), name='critic/y')
-        loss = tf.losses.mean_squared_error(self.y, self.current)
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(loss)
+    def build_model(self):
+        """Build a critic (value) network that maps (state, action) pairs -> Q-values."""
+        # Define input layers
+        states = layers.Input(shape=(self.state_size,), name='states')
+        actions = layers.Input(shape=(self.action_size,), name='actions')
 
-        self.tau = tf.placeholder(tf.float32, name='critic/tau')
-        self.assignments = [tf.assign(t, c * self.tau + (1-self.tau) * t)
-                            for c, t in scope_variables_mapping(scope_name + '_current', scope_name + '_target')]
+        # Add hidden layer(s) for state pathway
+        net_states = layers.Dense(units=512, kernel_regularizer=layers.regularizers.l2(1e-6))(states)
+        net_states = layers.BatchNormalization()(net_states)
+        net_states = layers.Activation('relu')(net_states)
 
-        self.init = [tf.assign(t, c)
-                     for c, t in scope_variables_mapping(scope_name + '_current', scope_name + '_target')]
+        # Add hidden layer(s) for action pathway
+        net_states = layers.Dense(units=256, kernel_regularizer=layers.regularizers.l2(1e-6), activation='relu')(net_states)
+        net_actions = layers.Dense(units=256, kernel_regularizer=layers.regularizers.l2(1e-6), activation='relu')(actions)
 
-        self.session = None
+        # Combine state and action pathways
+        net = layers.Add()([net_states, net_actions])
+        net = layers.Activation('relu')(net)
 
-        
-    def initialize(self):
-        self.session.run(self.init)
-        
-    def build_model(self, input_states, input_actions, task, scope_name, training=False, reuse=False): 
-        with tf.variable_scope(scope_name, reuse=reuse):
-            g = 0.0001
-            # 2 layers of states
-            dense_s1 = tf.layers.dense(input_states, 64,
-                                      activation=tf.nn.relu,
-                                      kernel_initializer=tf.contrib.layers.xavier_initializer())#,
-                                      #reuse=False)
+        # Add more layers to the combined network if needed
 
-            dense_s = tf.layers.dense(dense_s1, 64,
-                                      activation=tf.nn.relu,
-                                      kernel_initializer=tf.contrib.layers.xavier_initializer())#,
-                                      #reuse=True)
+        # Add final output layer to prduce action values (Q values)
+        Q_values = layers.Dense(units=1, name='q_values', kernel_initializer=layers.initializers.RandomUniform(minval=-0.003, maxval=0.003))(net)
 
-            # One layer of actions
-            dense_a = tf.layers.dense(input_actions, 64,
-                                      activation=tf.nn.relu,
-                                      kernel_initializer=tf.contrib.layers.xavier_initializer())#,
-                                      #reuse=False)
+        # Create Keras model
+        self.model = models.Model(inputs=[states, actions], outputs=Q_values)
 
-            # Merge together
-            dense = tf.concat([dense_s, dense_a], axis=1)
+        # Define optimizer and compile model for training with built-in loss function
+        optimizer = optimizers.Adam(lr=0.001)
+        self.model.compile(optimizer=optimizer, loss='mse')
 
-            # Decision layers
-            dense = tf.layers.dense(dense, 64,
-                                    activation=tf.nn.relu,
-                                    kernel_initializer=tf.contrib.layers.xavier_initializer())
+        # Compute action gradients (derivative of Q values w.r.t. to actions)
+        action_gradients = K.gradients(Q_values, actions)
 
-            dense = tf.layers.dense(dense, 64,
-                                    activation=tf.nn.relu,
-                                    kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-            # Output layer
-            dense = tf.layers.dense(dense, 1,
-                                    kernel_initializer=tf.random_uniform_initializer(minval=-g, maxval=g),
-                                    bias_initializer=tf.random_uniform_initializer(minval=-g, maxval=g))
-            result = dense
-
-        return result
-    
-    #fucntion to set the session
-    def set_session(self, session):
-        self.session = session
-    
-    #function to get value
-    def get_value(self, state, action):
-        return self.session.run(
-            self.current,
-            feed_dict={self.input_states: state, self.input_actions: action, self.is_training: False})
-    
-    #function to get the target value
-    def get_target_value(self, state, action):
-        return self.session.run(
-            self.target,
-            feed_dict={self.input_states: state, self.input_actions: action, self.is_training: False})
-    
-    #function for learning
-    def learn(self, states, actions, targets):
-        self.session.run(
-            self.optimizer,
-            feed_dict={
-                self.input_states: states,
-                self.input_actions: actions,
-                self.y: targets,
-                self.is_training: True})
-    
-    #function for update_target
-    def update_target(self, tau):
-        self.session.run(self.assignments, feed_dict={self.tau: tau})
- 
+        # Define an additional function to fetch action gradients (to be used by actor model)
+        self.get_action_gradients = K.function(
+            inputs=[*self.model.input, K.learning_phase()],
+            outputs=action_gradients)

@@ -5,9 +5,9 @@ Created on Wed Dec 26 15:38:33 2018
 @author: kishi
 """
 
-
 import random
 from collections import namedtuple, deque
+
 
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
@@ -21,7 +21,8 @@ class ReplayBuffer:
         """
         self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
         self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+        self.experience = namedtuple("Experience", field_names=[
+                                     "state", "action", "reward", "next_state", "done"])
 
     def add(self, state, action, reward, next_state, done):
         """Add a new experience to memory."""
